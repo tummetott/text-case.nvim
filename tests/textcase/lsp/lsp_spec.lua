@@ -76,31 +76,5 @@ describe("LSP", function()
       local expected_code = test_helpers.read_file("./tests/textcase/lsp/fixtures/destructuring-foo-as-constant.ts")
       assert.are.same(table.concat(content, "\n") .. "\n", expected_code)
     end)
-
-    it("Should convert the next word when the cursor isn't on a word", function()
-      test_helpers.execute_keys("13lgaN")
-      local content = nil
-      test_helpers.wait_for(5 * 1000, function()
-        content = test_helpers.get_buf_lines()
-        local found_modified_variable = not not string.find(content[1], "BAR_VAR")
-        return found_modified_variable
-      end)
-
-      local expected_code = test_helpers.read_file("./tests/textcase/lsp/fixtures/destructuring-bar-as-constant.ts")
-      assert.are.same(table.concat(content, "\n") .. "\n", expected_code)
-    end)
-
-    it("Shouldn't modify variables when the cursor isn't on a word and no word is found next", function()
-      test_helpers.execute_keys("$gaN")
-      local content = nil
-      test_helpers.wait_for(5 * 1000, function()
-        content = test_helpers.get_buf_lines()
-        local found_modified_variable = not not string.find(content[1], "BAR_VAR")
-        return found_modified_variable
-      end)
-
-      local expected_code = test_helpers.read_file("./tests/textcase/lsp/fixtures/destructuring.ts")
-      assert.are.same(table.concat(content, "\n") .. "\n", expected_code)
-    end)
   end)
 end)

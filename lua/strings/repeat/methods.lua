@@ -100,7 +100,7 @@ function M.dispatcher(mode, args)
 
     local get_match = utils.get_list(utils.escape_string(transformed_source), mode)
     for match in get_match do
-      conversion.replace_matches(match, transformed_source, transformed_dest, false)
+      conversion.replace_matches(match, transformed_source, transformed_dest)
     end
   end
 
@@ -118,35 +118,31 @@ function M.operator_callback(vmode)
   local method = M.state.methods_by_method_name[M.state.current_method]
   local apply = method.apply
 
-  if M.state.change_type == constants.change_type.LSP_RENAME then
-    conversion.do_lsp_rename(apply)
+  local mode = M.state.telescope_previous_mode or vim.api.nvim_get_mode().mode
+  local region = M.state.telescope_previous_visual_region
+    or utils.get_visual_region(nil, false, nil, utils.get_mode_at_operator(vmode))
+  local should_guess_region = M.state.change_type == constants.change_type.CURRENT_WORD
+    or (M.state.change_type == constants.change_type.QUICK_REPLACE and mode == "n")
+
+  if should_guess_region then
+    local jumper = method.opts and method.opts.jumper or nil
+
+    if jumper ~= nil then
+      local lines = utils.nvim_buf_get_text(
+        M.state.telescope_previous_buffer or 0,
+        region.start_row,
+        region.start_col,
+        region.end_row,
+        region.end_col
+      )
+      region = jumper(lines, region)
+    end
+  end
+
+  if region.mode == constants.visual_mode.BLOCK then
+    conversion.do_block_substitution(region.start_row, region.start_col, region.end_row, region.end_col, apply)
   else
-    local mode = M.state.telescope_previous_mode or vim.api.nvim_get_mode().mode
-    local region = M.state.telescope_previous_visual_region
-      or utils.get_visual_region(nil, false, nil, utils.get_mode_at_operator(vmode))
-    local should_guess_region = M.state.change_type == constants.change_type.CURRENT_WORD
-      or (M.state.change_type == constants.change_type.QUICK_REPLACE and mode == "n")
-
-    if should_guess_region then
-      local jumper = method.opts and method.opts.jumper or nil
-
-      if jumper ~= nil then
-        local lines = utils.nvim_buf_get_text(
-          M.state.telescope_previous_buffer or 0,
-          region.start_row,
-          region.start_col,
-          region.end_row,
-          region.end_col
-        )
-        region = jumper(lines, region)
-      end
-    end
-
-    if region.mode == constants.visual_mode.BLOCK then
-      conversion.do_block_substitution(region.start_row, region.start_col, region.end_row, region.end_col, apply)
-    else
-      conversion.do_substitution(region.start_row, region.start_col, region.end_row, region.end_col, apply)
-    end
+    conversion.do_substitution(region.start_row, region.start_col, region.end_row, region.end_col, apply)
   end
 
   M.state.telescope_previous_mode = nil
@@ -193,12 +189,8 @@ function M.visual(case_method)
 end
 
 function M.lsp_rename(case_method)
-  M.state.register = vim.v.register
-  M.state.current_method = case_method
-  M.state.change_type = constants.change_type.LSP_RENAME
-
-  vim.o.operatorfunc = "v:lua.require'" .. constants.namespace .. "'.operator_callback"
-  vim.api.nvim_feedkeys("g@iw", "i", false)
+  local method = M.state.methods_by_method_name[case_method]
+  conversion.do_lsp_rename(method.apply)
 end
 
 function M.current_word(case_method)

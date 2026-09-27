@@ -107,7 +107,7 @@ function M.incremental_substitute(opts, preview_ns, preview_buf)
         local match_is_inside_visual_range = match[1] >= opts.line1 and match[1] <= opts.line2
         if match_is_inside_visual_range then
           if dest ~= "" then
-            conversion.replace_matches(match, transformed_source, transformed_dest, false, buf)
+            conversion.replace_matches(match, transformed_source, transformed_dest, buf)
           end
           local length = transformed_dest == "" and #transformed_source or #transformed_dest
           if preview_ns ~= nil then

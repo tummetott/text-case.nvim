@@ -30,39 +30,43 @@ M.wait_for = function(max_milliseconds, callback)
   end
 end
 
--- Allow Typescript language server to start.
--- Even though the language server is attached, it doesn't mean it is ready
--- to receive requests. Hence, we send a request and wait for response.
--- Then we know the language server is ready.
-M.wait_for_language_server_to_start = function()
-  M.execute_keys("ww") -- Move to `doSomething`
-  local hover = ""
+-- Wait for the language server to answer a hover request for the fixture symbol.
+local function wait_for_hover(expected)
+  local ready = false
   M.wait_for(30 * 1000, function()
-    -- This prints one "Error detected while processing command line:" but this can be ignored
-    vim.lsp.buf_request_all(0, "textDocument/hover", vim.lsp.util.make_position_params(), function(results)
-      -- Hover will print the type definition of the variable under the cursor. Hence,
-      -- it should contain "doSomething".
-      hover = results[1].result and results[1].result.contents.value
+    if ready then
+      return true
+    end
+
+    local get_clients = vim.lsp.get_clients or vim.lsp.get_active_clients
+    local clients = get_clients({ bufnr = 0 })
+    if #clients == 0 then
+      return false
+    end
+
+    local params = vim.lsp.util.make_position_params(0, clients[1].offset_encoding)
+    vim.lsp.buf_request_all(0, "textDocument/hover", params, function(results)
+      for _, response in pairs(results or {}) do
+        local contents = response.result and response.result.contents
+        local text = type(contents) == "table" and contents.value or contents
+        if type(text) == "string" and string.find(text, expected, 1, true) then
+          ready = true
+        end
+      end
     end)
-    return string.find(hover, "doSomething")
+    return false
   end)
+  assert(ready, "Language server did not return hover for " .. expected)
 end
 
--- This method duplicates wait_for_language_server_to_start for
--- the destructuring file. Using Write Everything Twice and
--- avoiding to come up with a wrong abstraction too early
+M.wait_for_language_server_to_start = function()
+  M.execute_keys("ww") -- Move to `doSomething`
+  wait_for_hover("doSomething")
+end
+
 M.wait_for_language_server_to_start_on_destructuring_file = function()
-  M.execute_keys("ww") -- Move to `foovar`
-  local hover = ""
-  M.wait_for(30 * 1000, function()
-    -- This prints one "Error detected while processing command line:" but this can be ignored
-    vim.lsp.buf_request_all(0, "textDocument/hover", vim.lsp.util.make_position_params(), function(results)
-      -- Hover will print the type definition of the variable under the cursor. Hence,
-      -- it should contain "fooVar".
-      hover = results[1].result.contents.value
-    end)
-    return string.find(hover, "fooVar")
-  end)
+  M.execute_keys("ww") -- Move to `fooVar`
+  wait_for_hover("fooVar")
 end
 
 return M
